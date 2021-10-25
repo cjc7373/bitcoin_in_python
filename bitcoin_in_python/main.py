@@ -10,7 +10,7 @@ def main():
     bc.add_block("Send 2 more BTC to Ivan")
 
     for block in bc.blocks:
-        db.insert({'type': 'data', 'data': block.data.decode()})
+        # db.insert({'type': 'data', 'data': block.data.decode()})
         print(block)
 
 
