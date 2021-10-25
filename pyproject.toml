@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "bitcoin_in_python"
+version = "0.1.0"
+description = ""
+authors = ["cjc7373 <niuchangcun@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+tinydb = "^4.5.2"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

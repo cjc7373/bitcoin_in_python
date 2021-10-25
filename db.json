@@ -1,0 +1,16 @@
+{
+  "_default": {
+    "1": {
+      "type": "data",
+      "data": "Genesis Block"
+    },
+    "2": {
+      "type": "data",
+      "data": "Send 1 BTC to Ivan"
+    },
+    "3": {
+      "type": "data",
+      "data": "Send 2 more BTC to Ivan"
+    }
+  }
+}
