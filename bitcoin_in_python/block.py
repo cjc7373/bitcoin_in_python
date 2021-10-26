@@ -1,15 +1,17 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime
 import hashlib
 from typing import Optional
 import time
+
+from storage import db, query
 
 MAX_NONCE = 1 << 64  # 防止 nonce 溢出
 
 
 @dataclass
 class Block:
-    timestamp: datetime
+    timestamp: int
     data: str
     prev_block_hash: str
     nonce: int = 0
@@ -19,7 +21,7 @@ class Block:
     def prepare_data(self, nonce) -> str:
         return self.prev_block_hash + \
                     self.data + \
-                    str(int(self.timestamp.timestamp())) + \
+                    str(self.timestamp) + \
                     str(self.target_bits) + \
                     str(nonce)
 
@@ -51,9 +53,22 @@ class Block:
         else:
             return False
 
+    def to_dict(self):
+        block_dict = asdict(self)
+        block_dict.update({"type": "block"})
+        return block_dict
+
+    def insert_to_db(self):
+        db.insert(self.to_dict())
+
+    @classmethod
+    def from_dict(cls, d: dict):
+        d.pop('type', None)
+        return Block(**d)
+
     @classmethod
     def new_block(cls, data: str, prev_block_hash: str):
-        block = Block(datetime.now(), data, prev_block_hash)
+        block = Block(int(datetime.now().timestamp()), data, prev_block_hash)
         block.nonce, block.hash = block.proof_of_work()
         return block
 
@@ -65,18 +80,36 @@ class Block:
 
     @classmethod
     def new_genesis_block(cls):
-        return cls.new_block("Genesis Block", '')
+        return cls.new_block("Genesis Block", '0' * 64)
 
 
 @dataclass
 class BlockChain:
-    blocks: list[Block]
+    last_block_hash: str
 
     def add_block(self, data: str):
-        prev_block = self.blocks[-1]
-        new_block = Block.new_block(data, prev_block.hash)
-        self.blocks.append(new_block)
+        new_block = Block.new_block(data, self.last_block_hash)
+        new_block.insert_to_db()
+        self.last_block_hash = new_block.hash
+        db.update({'hash': self.last_block_hash}, query.type == 'last_block_hash')
 
     @classmethod
     def new_block_chain(cls):
-        return cls([Block.new_genesis_block()])
+        if res := db.search(query.type == 'last_block_hash'):
+            last_block_hash = res[0]['hash']
+        else:
+            genesis_block = Block.new_genesis_block()
+            genesis_block.insert_to_db()
+            last_block_hash = genesis_block.hash
+            db.insert({'type': 'last_block_hash', 'hash': last_block_hash})
+        return cls(last_block_hash)
+
+    def __iter__(self):
+        """
+        从尾到头迭代一条链
+        """
+        current_block_hash = self.last_block_hash
+        while res := db.search(query.fragment({'type': 'block', 'hash': current_block_hash})):
+            current_block_hash = res[0]['prev_block_hash']
+            yield Block.from_dict(res[0])
+        return
