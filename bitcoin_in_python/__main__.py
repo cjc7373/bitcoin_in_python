@@ -24,7 +24,10 @@ class Cli:
         parser_printchain.set_defaults(func=self.print_chain)
 
         args = parser.parse_args()
-        args.func(args)
+        if vars(args):
+            args.func(args)
+        else:
+            parser.print_help()
 
     def add_block(self, args):
         self.bc.add_block(args.data)
