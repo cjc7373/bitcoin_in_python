@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 
 @dataclass
@@ -6,12 +6,26 @@ class TXOutput:
     value: int
     script_pub_key: str
 
+    @classmethod
+    def from_dict(cls, d: dict):
+        return cls(**d)
+
+    def can_be_unlocked_with(self, unlocking_data: str) -> bool:
+        return self.script_pub_key == unlocking_data
+
 
 @dataclass
 class TXInput:
     txid: str
     vout: int  # 存储该输出在那笔交易中的索引
     script_sig: str
+
+    @classmethod
+    def from_dict(cls, d: dict):
+        return cls(**d)
+
+    def can_unlock_output_with(self, unlocking_data: str) -> bool:
+        return self.script_sig == unlocking_data
 
 
 @dataclass
@@ -34,3 +48,12 @@ class Transaction:
         txout = TXOutput(subsidy, to)
         tx = cls("", [txin], [txout])
         return tx
+
+    @classmethod
+    def from_dict(cls, d: dict):
+        vin = [TXInput.from_dict(i) for i in d.pop("vin")]
+        vout = [TXOutput.from_dict(i) for i in d.pop("vout")]
+        return cls(**d, vin=vin, vout=vout)
+
+    def __str__(self):
+        return str(asdict(self))

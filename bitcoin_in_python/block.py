@@ -75,7 +75,9 @@ class Block:
     @classmethod
     def from_dict(cls, d: dict):
         d.pop("type", None)
-        return Block(**d)
+        txs_list = d.pop("transactions")
+        txs = [Transaction.from_dict(i) for i in txs_list]
+        return cls(**d, transactions=txs)
 
     @classmethod
     def new_block(cls, transactions: list[Transaction], prev_block_hash: str):
@@ -131,3 +133,9 @@ class BlockChain:
             current_block_hash = res[0]["prev_block_hash"]
             yield Block.from_dict(res[0])
         return
+
+    def find_unspent_transactions(self, address: str) -> list[Transaction]:
+        unspent_txs: list[Transaction] = []
+        for block in self:
+            for txs in block.transactions:
+                

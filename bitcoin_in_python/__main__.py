@@ -5,7 +5,7 @@ from block import BlockChain
 
 
 def main():
-    bc = BlockChain.new_block_chain()
+    bc = BlockChain.new_block_chain("admin")
     cli = Cli(bc)
     cli.run()
 
@@ -15,12 +15,16 @@ class Cli:
     bc: BlockChain
 
     def run(self):
-        parser = argparse.ArgumentParser(description='Manage a simple blockchain.', prog='bitcoin_in_python')
+        parser = argparse.ArgumentParser(
+            description="Manage a simple blockchain.", prog="bitcoin_in_python"
+        )
         subparsers = parser.add_subparsers()
-        parser_addblock = subparsers.add_parser('addblock', help='Add a new block.')
+        parser_addblock = subparsers.add_parser("addblock", help="Add a new block.")
         parser_addblock.set_defaults(func=self.add_block)
-        parser_addblock.add_argument('data')
-        parser_printchain = subparsers.add_parser('printchain', help='Print current blockchain.')
+        parser_addblock.add_argument("data")
+        parser_printchain = subparsers.add_parser(
+            "printchain", help="Print current blockchain."
+        )
         parser_printchain.set_defaults(func=self.print_chain)
 
         args = parser.parse_args()
@@ -37,5 +41,5 @@ class Cli:
             print(block)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
