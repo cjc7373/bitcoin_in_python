@@ -5,6 +5,6 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# The db file is human readable.
+# 数据库实际为人类可读的 JSON 文件
 db = TinyDB(BASE_DIR / 'db.json', ensure_ascii=False, indent=2)
 query = Query()
