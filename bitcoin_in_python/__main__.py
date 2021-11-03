@@ -20,12 +20,18 @@ class Cli:
         )
         subparsers = parser.add_subparsers()
         parser_addblock = subparsers.add_parser("addblock", help="Add a new block.")
-        parser_addblock.set_defaults(func=self.add_block)
         parser_addblock.add_argument("data")
+        parser_addblock.add_argument("--address")
+        parser_addblock.set_defaults(func=self.add_block)
+
         parser_printchain = subparsers.add_parser(
             "printchain", help="Print current blockchain."
         )
         parser_printchain.set_defaults(func=self.print_chain)
+
+        parser_getbalance = subparsers.add_parser(
+            "getbalance", help="get balance from an address"
+        )
 
         args = parser.parse_args()
         if vars(args):

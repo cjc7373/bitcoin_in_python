@@ -5,7 +5,7 @@ from typing import Optional
 import time
 
 from storage import db, query
-from transaction import Transaction
+from transaction import Transaction, TXOutput
 
 MAX_NONCE = 1 << 64  # 防止 nonce 溢出
 
@@ -134,8 +134,23 @@ class BlockChain:
             yield Block.from_dict(res[0])
         return
 
-    def find_unspent_transactions(self, address: str) -> list[Transaction]:
-        unspent_txs: list[Transaction] = []
+    def find_UTXO(self, address: str) -> list[tuple[Transaction, int]]:
+        """
+        UTXO: Unspent Transactions Outputs
+        """
+        utxo: list[tuple[Transaction, int]] = []
+        spent_tx_outputs: dict[str, bool] = {}  # key is transaction id + tout index
+
         for block in self:
-            for txs in block.transactions:
-                
+            for tx in block.transactions:
+                for i in range(len(tx.vout)):
+                    if f"{tx.id}{i}" in spent_tx_outputs:
+                        continue
+                    elif tx.vout[i].can_be_unlocked_with(address):
+                        utxo.append((tx, i))
+
+                for input in tx.vin:
+                    if input.can_unlock_output_with(address):
+                        spent_tx_outputs[f"{input.txid}{input.vout_index}"] = True
+
+

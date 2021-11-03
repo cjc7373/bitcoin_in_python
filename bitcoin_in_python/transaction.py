@@ -3,7 +3,7 @@ from dataclasses import dataclass, asdict
 
 @dataclass
 class TXOutput:
-    value: int
+    value: int  # 交易的货币数量
     script_pub_key: str
 
     @classmethod
@@ -16,8 +16,8 @@ class TXOutput:
 
 @dataclass
 class TXInput:
-    txid: str
-    vout: int  # 存储该输出在那笔交易中的索引
+    txid: str  # 输出的交易
+    vout_index: int  # 存储该输出在那笔交易中的索引
     script_sig: str
 
     @classmethod
@@ -30,7 +30,7 @@ class TXInput:
 
 @dataclass
 class Transaction:
-    id: str
+    id: str  # TODO: 这是什么?
     vin: list[TXInput]
     vout: list[TXOutput]
 
