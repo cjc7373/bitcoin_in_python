@@ -3,11 +3,13 @@ from datetime import datetime
 import hashlib
 from typing import Optional
 import time
+from collections import namedtuple
 
 from storage import db, query
-from transaction import Transaction, TXOutput
+from transaction import Transaction
 
 MAX_NONCE = 1 << 64  # 防止 nonce 溢出
+OutputWithTransaction = namedtuple("OutputWithTransaction", "transaction output index")
 
 
 @dataclass
@@ -102,8 +104,9 @@ class Block:
 class BlockChain:
     last_block_hash: str
 
-    def add_block(self, data: str):
-        new_block = Block.new_block(data, self.last_block_hash)
+    def add_block(self, tx: Transaction):
+        coinbase_tx = Transaction.new_coinbase_transaction("admin")
+        new_block = Block.new_block([coinbase_tx, tx], self.last_block_hash)
         new_block.insert_to_db()
         self.last_block_hash = new_block.hash
         db.update({"hash": self.last_block_hash}, query.type == "last_block_hash")
@@ -134,11 +137,11 @@ class BlockChain:
             yield Block.from_dict(res[0])
         return
 
-    def find_UTXO(self, address: str) -> list[tuple[Transaction, int]]:
+    def find_UTXO(self, address: str) -> list[OutputWithTransaction]:
         """
         UTXO: Unspent Transactions Outputs
         """
-        utxo: list[tuple[Transaction, int]] = []
+        utxo: list[OutputWithTransaction] = []
         spent_tx_outputs: dict[str, bool] = {}  # key is transaction id + tout index
 
         for block in self:
@@ -147,10 +150,27 @@ class BlockChain:
                     if f"{tx.id}{i}" in spent_tx_outputs:
                         continue
                     elif tx.vout[i].can_be_unlocked_with(address):
-                        utxo.append((tx, i))
+                        utxo.append(OutputWithTransaction(tx, tx.vout[i], i))
 
                 for input in tx.vin:
                     if input.can_unlock_output_with(address):
                         spent_tx_outputs[f"{input.txid}{input.vout_index}"] = True
 
+        return utxo
 
+    def find_spendable_utxo(
+        self, amount: int, address: str
+    ) -> tuple[Optional[list[OutputWithTransaction]], int]:
+        """
+        寻找满足给定金额的最小 UTXO 集合.
+        """
+        utxo = self.find_UTXO(address)
+        accumulated = 0
+        rtn = []
+        for output_with_transaction in utxo:
+            accumulated += output_with_transaction.output.value
+            rtn.append(output_with_transaction)
+            if accumulated > amount:
+                return rtn, accumulated
+
+        return None, 0

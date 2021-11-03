@@ -2,6 +2,8 @@ import argparse
 from dataclasses import dataclass
 
 from block import BlockChain
+from transaction import Transaction
+from exception import BitcoinException
 
 
 def main():
@@ -19,10 +21,11 @@ class Cli:
             description="Manage a simple blockchain.", prog="bitcoin_in_python"
         )
         subparsers = parser.add_subparsers()
-        parser_addblock = subparsers.add_parser("addblock", help="Add a new block.")
-        parser_addblock.add_argument("data")
-        parser_addblock.add_argument("--address")
-        parser_addblock.set_defaults(func=self.add_block)
+        parser_send = subparsers.add_parser("send", help="Send bitcoin to someone.")
+        parser_send.add_argument("--from", required=True, dest="_from")
+        parser_send.add_argument("--to", required=True)
+        parser_send.add_argument("--amount", required=True, type=float)
+        parser_send.set_defaults(func=self.send)
 
         parser_printchain = subparsers.add_parser(
             "printchain", help="Print current blockchain."
@@ -32,6 +35,8 @@ class Cli:
         parser_getbalance = subparsers.add_parser(
             "getbalance", help="get balance from an address"
         )
+        parser_getbalance.add_argument("--address", required=True)
+        parser_getbalance.set_defaults(func=self.get_balance)
 
         args = parser.parse_args()
         if vars(args):
@@ -39,12 +44,24 @@ class Cli:
         else:
             parser.print_help()
 
-    def add_block(self, args):
-        self.bc.add_block(args.data)
+    def send(self, args):
+        try:
+            tx = Transaction.new_transaction(args._from, args.to, args.amount, self.bc)
+            self.bc.add_block(tx)
+        except BitcoinException as e:
+            print(e)
 
     def print_chain(self, args):
         for block in self.bc:
             print(block)
+
+    def get_balance(self, args):
+        utxo = self.bc.find_UTXO(args.address)
+        balance = 0
+        for output_with_transaction in utxo:
+            balance += output_with_transaction.output.value
+
+        print(f"Balance of {args.address}: {balance:.2f}")
 
 
 if __name__ == "__main__":
