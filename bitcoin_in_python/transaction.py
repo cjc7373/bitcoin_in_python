@@ -2,7 +2,10 @@ from dataclasses import dataclass, asdict
 from typing import TYPE_CHECKING
 from hashlib import sha256
 
+import base58
+
 from exception import BitcoinException
+from wallet import hex_hash_pubkey
 
 if TYPE_CHECKING:
     from block import BlockChain
@@ -11,35 +14,43 @@ if TYPE_CHECKING:
 @dataclass
 class TXOutput:
     value: int  # 交易的货币数量
-    script_pub_key: str
+    pubkey_hash: str
 
     @classmethod
     def from_dict(cls, d: dict):
         return cls(**d)
 
-    def can_be_unlocked_with(self, unlocking_data: str) -> bool:
-        return self.script_pub_key == unlocking_data
+    def lock(self, address: str):
+        """用收款者地址锁定币."""
+        pubkey_hash = base58.b58decode(address).decode()
+        pubkey_hash = pubkey_hash[1: -4]
+        self.pubkey_hash = pubkey_hash
+
+    def can_be_unlocked_with(self, pubkey_hash: str) -> bool:
+        return self.pubkey_hash == pubkey_hash
 
     def hash(self):
-        return sha256(f"{self.value}{self.script_pub_key}".encode()).hexdigest()
+        return sha256(f"{self.value}{self.pubkey_hash}".encode()).hexdigest()
 
 
 @dataclass
 class TXInput:
     txid: str  # 输出的交易
     vout_index: int  # 存储该输出在那笔交易中的索引
-    script_sig: str
+    signature: str
+    pubkey: str
 
     @classmethod
     def from_dict(cls, d: dict):
         return cls(**d)
 
-    def can_unlock_output_with(self, unlocking_data: str) -> bool:
-        return self.script_sig == unlocking_data
+    def can_unlock_output_with(self, pubkey_hash: str) -> bool:
+        locking_hash = hex_hash_pubkey(self.pubkey)
+        return locking_hash == pubkey_hash
 
     def hash(self):
         return sha256(
-            f"{self.txid}{self.vout_index}{self.script_sig}".encode()
+            f"{self.txid}{self.vout_index}{self.signature}{self.pubkey}".encode()
         ).hexdigest()
 
 
@@ -50,18 +61,14 @@ class Transaction:
     vout: list[TXOutput]
 
     @classmethod
-    def new_coinbase_transaction(cls, to: str, data: str = None):
+    def new_coinbase_transaction(cls, to: str):
         """
         奖励矿工的交易, 不需要输出
         """
-        subsidy = 1
+        SUBSIDY = 1
 
-        if not data:
-            data = f"Reward to {to}"
-
-        txin = TXInput("", -1, data)
-        txout = TXOutput(subsidy, to)
-        tx = cls("", [txin], [txout])
+        out = TXOutput(SUBSIDY, to)
+        tx = cls("", [], [out])
         tx.hash()
         return tx
 
@@ -77,7 +84,7 @@ class Transaction:
                         output_with_transaction.transaction.id,
                         output_with_transaction.index,
                         _from,
-                    )
+                    )  # FIXME
                 )
 
             outputs = [TXOutput(amount, to)]

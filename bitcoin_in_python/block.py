@@ -117,7 +117,7 @@ class BlockChain:
             last_block_hash = res[0]["hash"]
         else:
             coinbase_transaction = Transaction.new_coinbase_transaction(
-                address, "Genesis Block"
+                address
             )
             genesis_block = Block.new_genesis_block(coinbase_transaction)
             genesis_block.insert_to_db()

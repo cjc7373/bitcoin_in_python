@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from block import BlockChain
 from transaction import Transaction
 from exception import BitcoinException
+from wallet import Wallet
 
 
 def main():
-    bc = BlockChain.new_block_chain("admin")
+    bc = BlockChain.new_block_chain("1EuUmNwGeAEJnxEgvbPNEa49E5tJnV6FBo")
     cli = Cli(bc)
     cli.run()
 
@@ -21,6 +22,7 @@ class Cli:
             description="Manage a simple blockchain.", prog="bitcoin_in_python"
         )
         subparsers = parser.add_subparsers()
+
         parser_send = subparsers.add_parser("send", help="Send bitcoin to someone.")
         parser_send.add_argument("--from", required=True, dest="_from")
         parser_send.add_argument("--to", required=True)
@@ -37,6 +39,11 @@ class Cli:
         )
         parser_getbalance.add_argument("--address", required=True)
         parser_getbalance.set_defaults(func=self.get_balance)
+
+        parser_createwallet = subparsers.add_parser(
+            "createwallet", help="create a new wallet, returns an address"
+        )
+        parser_createwallet.set_defaults(func=self.create_wallet)
 
         args = parser.parse_args()
         if vars(args):
@@ -62,6 +69,10 @@ class Cli:
             balance += output_with_transaction.output.value
 
         print(f"Balance of {args.address}: {balance:.2f}")
+
+    def create_wallet(self, args):
+        wallet = Wallet.new_wallet()
+        print(f"Your new address is {wallet.get_address()}")
 
 
 if __name__ == "__main__":
