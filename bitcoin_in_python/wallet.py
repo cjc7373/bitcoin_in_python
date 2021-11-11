@@ -6,6 +6,8 @@ from Crypto.PublicKey import ECC
 from Crypto.Hash import RIPEMD160
 import base58
 
+from storage import save_str_to_file, read_str_from_file
+
 
 def new_key_pair() -> (str, str):
     key = ECC.generate(curve="p256")
@@ -33,6 +35,16 @@ class Wallet:
     def new_wallet(cls):
         key, pub = new_key_pair()
         return cls(key, pub)
+
+    def save_wallet(self, name):
+        save_str_to_file(self.private_key, f"{name}.txt")
+
+    @classmethod
+    def read_wallet(cls, name):
+        key_str = read_str_from_file(f"{name}.txt")
+        key = ECC.import_key(key_str)
+        pub_str = key.public_key().export_key(format="PEM")
+        return cls(key_str, pub_str)
 
     def get_address(self) -> str:
         hsh = hash_pubkey(self.public_key)

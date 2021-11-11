@@ -8,7 +8,7 @@ from wallet import Wallet
 
 
 def main():
-    bc = BlockChain.new_block_chain("1EuUmNwGeAEJnxEgvbPNEa49E5tJnV6FBo")
+    bc = BlockChain.new_block_chain("1DtHd1KgS4c1YrCjuPtEzTtbizsPa47NuR")
     cli = Cli(bc)
     cli.run()
 
@@ -24,8 +24,10 @@ class Cli:
         subparsers = parser.add_subparsers()
 
         parser_send = subparsers.add_parser("send", help="Send bitcoin to someone.")
-        parser_send.add_argument("--from", required=True, dest="_from")
-        parser_send.add_argument("--to", required=True)
+        parser_send.add_argument("--wallet", required=True)
+        parser_send.add_argument(
+            "--to", required=True, help="Address of the recipient."
+        )
         parser_send.add_argument("--amount", required=True, type=float)
         parser_send.set_defaults(func=self.send)
 
@@ -43,6 +45,7 @@ class Cli:
         parser_createwallet = subparsers.add_parser(
             "createwallet", help="create a new wallet, returns an address"
         )
+        parser_createwallet.add_argument("--name", required=True)
         parser_createwallet.set_defaults(func=self.create_wallet)
 
         args = parser.parse_args()
@@ -53,7 +56,8 @@ class Cli:
 
     def send(self, args):
         try:
-            tx = Transaction.new_transaction(args._from, args.to, args.amount, self.bc)
+            wallet = Wallet.read_wallet(args.wallet)
+            tx = Transaction.new_transaction(wallet, args.to, args.amount, self.bc)
             self.bc.add_block(tx)
         except BitcoinException as e:
             print(e)
@@ -72,7 +76,11 @@ class Cli:
 
     def create_wallet(self, args):
         wallet = Wallet.new_wallet()
-        print(f"Your new address is {wallet.get_address()}")
+        wallet.save_wallet(args.name)
+        print(
+            f"Your new address is {wallet.get_address()}, "
+            f"private key saved to {args.name}.txt"
+        )
 
 
 if __name__ == "__main__":

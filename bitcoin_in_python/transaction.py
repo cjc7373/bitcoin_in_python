@@ -6,6 +6,7 @@ import binascii
 import base58
 from Crypto.Signature import DSS
 from Crypto.PublicKey import ECC
+from Crypto.Hash import SHA256
 
 from exception import BitcoinException
 from wallet import hex_hash_pubkey, Wallet
@@ -27,7 +28,7 @@ class TXOutput:
     def lock(self, address: str):
         """用收款者地址锁定币."""
         pubkey_hash = base58.b58decode(address).decode()
-        pubkey_hash = pubkey_hash[1: -4]
+        pubkey_hash = pubkey_hash[1:-4]
         self.pubkey_hash = pubkey_hash
 
     def can_be_unlocked_with(self, pubkey_hash: str) -> bool:
@@ -136,7 +137,7 @@ class Transaction:
             return
 
         key = ECC.import_key(private_key)
-        signer = DSS.new(key, 'fips-186-3')
+        signer = DSS.new(key, "fips-186-3")
 
         tx_copy = self.trimmed_copy()
         for index, vin in enumerate(tx_copy.vin):
@@ -144,8 +145,9 @@ class Transaction:
             tx_copy.id = tx_copy.hash()
             vin.pubkey = ""
 
-            sig_bytes = signer.sign(tx_copy.id)
-            self.vin[index].signature = binascii.hexlify(sig_bytes)
+            # 由于 signer.sign 方法必须要传一个 Hash 对象, 所以又做了一遍哈希..
+            sig_bytes = signer.sign(SHA256.new(tx_copy.id.encode()))
+            self.vin[index].signature = binascii.hexlify(sig_bytes).decode()
 
     def verify(self, utxo: list["OutputWithTransaction"]) -> bool:
         """验证一个 input 的签名"""
@@ -157,9 +159,13 @@ class Transaction:
             vin.pubkey = ""
 
             pubkey = ECC.import_key(self.vin[index].pubkey)
-            verifier = DSS.new(pubkey, 'fips-186-3')
+            verifier = DSS.new(pubkey, "fips-186-3")
             try:
-                verifier.verify(tx_copy.id, binascii.unhexlify(self.vin[index].signature))
+                verifier.verify(
+                    # 此处同理, 见 sign 方法
+                    SHA256.new(tx_copy.id.encode()),
+                    binascii.unhexlify(self.vin[index].signature),
+                )
             except ValueError:
                 return False
         return True

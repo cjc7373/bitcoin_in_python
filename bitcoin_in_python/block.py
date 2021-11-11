@@ -63,6 +63,8 @@ class Block:
     def to_dict(self):
         block_dict = asdict(self)
         block_dict.update({"type": "block"})
+        # from pprint import  pprint
+        # pprint(block_dict)
         return block_dict
 
     def insert_to_db(self):
@@ -121,9 +123,7 @@ class BlockChain:
         if res := db.search(query.type == "last_block_hash"):
             last_block_hash = res[0]["hash"]
         else:
-            coinbase_transaction = Transaction.new_coinbase_transaction(
-                address
-            )
+            coinbase_transaction = Transaction.new_coinbase_transaction(address)
             genesis_block = Block.new_genesis_block(coinbase_transaction)
             genesis_block.insert_to_db()
             last_block_hash = genesis_block.hash
