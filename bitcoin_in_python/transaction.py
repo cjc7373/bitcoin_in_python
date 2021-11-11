@@ -1,14 +1,18 @@
 from dataclasses import dataclass, asdict
 from typing import TYPE_CHECKING
 from hashlib import sha256
+import binascii
 
 import base58
+from Crypto.Signature import DSS
+from Crypto.PublicKey import ECC
 
 from exception import BitcoinException
-from wallet import hex_hash_pubkey
+from wallet import hex_hash_pubkey, Wallet
 
 if TYPE_CHECKING:
     from block import BlockChain
+    from block import OutputWithTransaction
 
 
 @dataclass
@@ -73,8 +77,8 @@ class Transaction:
         return tx
 
     @classmethod
-    def new_transaction(cls, _from: str, to: str, amount: int, bc: "BlockChain"):
-        utxo, accumulated = bc.find_spendable_utxo(amount, _from)
+    def new_transaction(cls, wallet: Wallet, to: str, amount: int, bc: "BlockChain"):
+        utxo, accumulated = bc.find_spendable_utxo(amount, wallet.get_address())
         if utxo:
             # build a list of inputs
             inputs = []
@@ -82,19 +86,29 @@ class Transaction:
                 inputs.append(
                     TXInput(
                         output_with_transaction.transaction.id,
-                        output_with_transaction.index,
-                        _from,
-                    )  # FIXME
+                        output_with_transaction.idx,
+                        "",
+                        wallet.public_key,
+                    )
                 )
 
             outputs = [TXOutput(amount, to)]
             if accumulated > amount:  # 找零
-                outputs.append(TXOutput(accumulated - amount, _from))
+                outputs.append(TXOutput(accumulated - amount, wallet.get_address()))
             tx = cls("", inputs, outputs)
             tx.hash()
+            tx.sign(utxo, wallet.private_key)
             return tx
         else:
             raise BitcoinException("Not enough funds.")
+
+    def trimmed_copy(self):
+        """用于签名的交易副本."""
+        inputs = []
+        for vin in self.vin:
+            inputs.append(TXInput(vin.txid, vin.vout_index, "", ""))
+        tx_copy = Transaction(self.id, inputs, self.vout.copy())
+        return tx_copy
 
     @classmethod
     def from_dict(cls, d: dict):
@@ -113,3 +127,39 @@ class Transaction:
             h.update(output.hash().encode())
         self.id = h.hexdigest()
         return self.id
+
+    def is_coinbase(self):
+        return len(self.vin) == 0
+
+    def sign(self, utxo: list["OutputWithTransaction"], private_key: str) -> None:
+        if self.is_coinbase():
+            return
+
+        key = ECC.import_key(private_key)
+        signer = DSS.new(key, 'fips-186-3')
+
+        tx_copy = self.trimmed_copy()
+        for index, vin in enumerate(tx_copy.vin):
+            vin.pubkey = utxo[index].output.pubkey_hash
+            tx_copy.id = tx_copy.hash()
+            vin.pubkey = ""
+
+            sig_bytes = signer.sign(tx_copy.id)
+            self.vin[index].signature = binascii.hexlify(sig_bytes)
+
+    def verify(self, utxo: list["OutputWithTransaction"]) -> bool:
+        """验证一个 input 的签名"""
+        tx_copy = self.trimmed_copy()
+
+        for index, vin in enumerate(tx_copy.vin):
+            vin.pubkey = utxo[index].output.pubkey_hash
+            tx_copy.id = tx_copy.hash()
+            vin.pubkey = ""
+
+            pubkey = ECC.import_key(self.vin[index].pubkey)
+            verifier = DSS.new(pubkey, 'fips-186-3')
+            try:
+                verifier.verify(tx_copy.id, binascii.unhexlify(self.vin[index].signature))
+            except ValueError:
+                return False
+        return True

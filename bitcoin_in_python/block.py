@@ -9,7 +9,7 @@ from storage import db, query
 from transaction import Transaction
 
 MAX_NONCE = 1 << 64  # 防止 nonce 溢出
-OutputWithTransaction = namedtuple("OutputWithTransaction", "transaction output index")
+OutputWithTransaction = namedtuple("OutputWithTransaction", "transaction output idx")
 
 
 @dataclass
@@ -84,6 +84,11 @@ class Block:
     @classmethod
     def new_block(cls, transactions: list[Transaction], prev_block_hash: str):
         block = Block(int(datetime.now().timestamp()), transactions, prev_block_hash)
+
+        # 验证每个交易的签名
+        # for tx in transactions:
+        #     tx.verify()  # FIXME
+
         block.nonce, block.hash = block.proof_of_work()
         return block
 
