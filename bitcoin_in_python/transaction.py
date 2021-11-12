@@ -1,19 +1,17 @@
-from dataclasses import dataclass, asdict
-from typing import TYPE_CHECKING
-from hashlib import sha256
 import binascii
+from dataclasses import asdict, dataclass
+from hashlib import sha256
+from typing import TYPE_CHECKING
 
 import base58
-from Crypto.Signature import DSS
-from Crypto.PublicKey import ECC
 from Crypto.Hash import SHA256
-
+from Crypto.PublicKey import ECC
+from Crypto.Signature import DSS
 from exception import BitcoinException
-from wallet import hex_hash_pubkey, Wallet
+from wallet import Wallet, hex_hash_pubkey
 
 if TYPE_CHECKING:
-    from block import BlockChain
-    from block import OutputWithTransaction
+    from block import BlockChain, OutputWithTransaction
 
 
 @dataclass

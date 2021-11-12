@@ -2,8 +2,8 @@ import argparse
 from dataclasses import dataclass
 
 from block import BlockChain
-from transaction import Transaction
 from exception import BitcoinException
+from transaction import Transaction
 from wallet import Wallet
 
 
@@ -25,9 +25,7 @@ class Cli:
 
         parser_send = subparsers.add_parser("send", help="Send bitcoin to someone.")
         parser_send.add_argument("--wallet", required=True)
-        parser_send.add_argument(
-            "--to", required=True, help="Address of the recipient."
-        )
+        parser_send.add_argument("--to", required=True, help="Address of the recipient.")
         parser_send.add_argument("--amount", required=True, type=float)
         parser_send.set_defaults(func=self.send)
 

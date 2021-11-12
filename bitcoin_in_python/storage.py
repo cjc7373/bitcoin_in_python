@@ -1,5 +1,6 @@
-from tinydb import TinyDB, Query
 from pathlib import Path
+
+from tinydb import Query, TinyDB
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent / "data"

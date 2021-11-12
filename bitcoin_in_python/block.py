@@ -1,15 +1,22 @@
-from dataclasses import dataclass, asdict
-from datetime import datetime
 import hashlib
-from typing import Optional
 import time
-from collections import namedtuple
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from pprint import pprint
+from typing import Optional
 
+from exception import BitcoinException
 from storage import db, query
-from transaction import Transaction
+from transaction import Transaction, TXOutput
 
 MAX_NONCE = 1 << 64  # 防止 nonce 溢出
-OutputWithTransaction = namedtuple("OutputWithTransaction", "transaction output idx")
+
+
+@dataclass
+class OutputWithTransaction:
+    transaction: Transaction
+    output: TXOutput
+    idx: int
 
 
 @dataclass
@@ -30,10 +37,10 @@ class Block:
             + str(nonce)
         )
 
-    def proof_of_work(self) -> Optional[tuple[int, str]]:
+    def proof_of_work(self) -> tuple[int, str]:
         target = 1 << (256 - self.target_bits)
 
-        print(f"Mining block containing transactions: {self.transactions}")
+        pprint(f"Mining block containing transactions: {self.transactions}")
         start = time.time()
         for nonce in range(MAX_NONCE):
             data = self.prepare_data(nonce).encode()
@@ -48,7 +55,7 @@ class Block:
             else:
                 continue
 
-        return None
+        raise BitcoinException("Reached MAX_NONCE, mining aborted.")
 
     def validate(self) -> bool:
         data = self.prepare_data(self.nonce).encode()
@@ -110,6 +117,7 @@ class Block:
 @dataclass
 class BlockChain:
     last_block_hash: str
+    utxo_set: dict[str, Transaction] = field(default_factory=dict)
 
     def add_block(self, tx: Transaction):
         coinbase_tx = Transaction.new_coinbase_transaction("admin")
@@ -135,9 +143,7 @@ class BlockChain:
         从尾到头迭代一条链
         """
         current_block_hash = self.last_block_hash
-        while res := db.search(
-            query.fragment({"type": "block", "hash": current_block_hash})
-        ):
+        while res := db.search(query.fragment({"type": "block", "hash": current_block_hash})):
             current_block_hash = res[0]["prev_block_hash"]
             yield Block.from_dict(res[0])
         return

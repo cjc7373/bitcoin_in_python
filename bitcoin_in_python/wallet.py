@@ -1,22 +1,21 @@
+import binascii
 from dataclasses import dataclass
 from hashlib import sha256
-import binascii
 
-from Crypto.PublicKey import ECC
-from Crypto.Hash import RIPEMD160
 import base58
+from Crypto.Hash import RIPEMD160
+from Crypto.PublicKey import ECC
+from storage import read_str_from_file, save_str_to_file
 
-from storage import save_str_to_file, read_str_from_file
 
-
-def new_key_pair() -> (str, str):
+def new_key_pair() -> tuple[str, str]:
     key = ECC.generate(curve="p256")
     pub = key.public_key()
     return key.export_key(format="PEM"), pub.export_key(format="PEM")
 
 
-def hash_pubkey(pub: str) -> bytes:
-    pub = ECC.import_key(pub)
+def hash_pubkey(pub_str: str) -> bytes:
+    pub = ECC.import_key(pub_str)
     hsh: bytes = sha256(pub.export_key(format="DER")).digest()
     hsh = RIPEMD160.new(hsh).digest()
     return hsh
