@@ -11,7 +11,7 @@ from exception import BitcoinException
 from wallet import Wallet, hex_hash_pubkey
 
 if TYPE_CHECKING:
-    from block import BlockChain, OutputWithTransaction
+    from block import BlockChain
 
 
 @dataclass
@@ -78,29 +78,29 @@ class Transaction:
 
     @classmethod
     def new_transaction(cls, wallet: Wallet, to: str, amount: int, bc: "BlockChain"):
-        utxo, accumulated = bc.find_spendable_utxo(amount, wallet.get_address())
-        if utxo:
-            # build a list of inputs
-            inputs = []
-            for output_with_transaction in utxo:
-                inputs.append(
-                    TXInput(
-                        output_with_transaction.transaction.id,
-                        output_with_transaction.idx,
-                        "",
-                        wallet.public_key,
-                    )
-                )
+        txs, accumulated = bc.find_spendable_transactions(amount, wallet.get_address())
 
-            outputs = [TXOutput(amount, to)]
-            if accumulated > amount:  # 找零
-                outputs.append(TXOutput(accumulated - amount, wallet.get_address()))
-            tx = cls("", inputs, outputs)
-            tx.hash()
-            tx.sign(utxo, wallet.private_key)
-            return tx
-        else:
-            raise BitcoinException("Not enough funds.")
+        # build a list of inputs
+        inputs = []
+        for tx in txs:
+            for index, output in enumerate(tx.vout):
+                if output.can_be_unlocked_with(wallet.get_address()):
+                    inputs.append(
+                        TXInput(
+                            tx.id,
+                            index,
+                            "",
+                            wallet.export_public_key(),
+                        )
+                    )
+
+        outputs = [TXOutput(amount, to)]
+        if accumulated > amount:  # 找零
+            outputs.append(TXOutput(accumulated - amount, wallet.get_address()))
+        tx = cls("", inputs, outputs)
+        tx.hash()
+        tx.sign(wallet)
+        return tx
 
     def trimmed_copy(self):
         """用于签名的交易副本."""
@@ -131,29 +131,29 @@ class Transaction:
     def is_coinbase(self):
         return len(self.vin) == 0
 
-    def sign(self, utxo: list["OutputWithTransaction"], private_key: str) -> None:
+    def sign(self, wallet: Wallet) -> None:
         if self.is_coinbase():
             return
 
-        key = ECC.import_key(private_key)
-        signer = DSS.new(key, "fips-186-3")
+        signer = DSS.new(wallet.private_key, "fips-186-3")
 
         tx_copy = self.trimmed_copy()
         for index, vin in enumerate(tx_copy.vin):
-            vin.pubkey = utxo[index].output.pubkey_hash
+            vin.pubkey = wallet.export_public_key()
             tx_copy.id = tx_copy.hash()
             vin.pubkey = ""
 
             # 由于 signer.sign 方法必须要传一个 Hash 对象, 所以又做了一遍哈希..
+            # FIXME: 可以考虑改进
             sig_bytes = signer.sign(SHA256.new(tx_copy.id.encode()))
             self.vin[index].signature = binascii.hexlify(sig_bytes).decode()
 
-    def verify(self, utxo: list["OutputWithTransaction"]) -> bool:
+    def verify(self) -> bool:
         """验证一个 input 的签名"""
         tx_copy = self.trimmed_copy()
 
         for index, vin in enumerate(tx_copy.vin):
-            vin.pubkey = utxo[index].output.pubkey_hash
+            vin.pubkey = self.vin[index].pubkey
             tx_copy.id = tx_copy.hash()
             vin.pubkey = ""
 

@@ -13,13 +13,6 @@ MAX_NONCE = 1 << 64  # 防止 nonce 溢出
 
 
 @dataclass
-class OutputWithTransaction:
-    transaction: Transaction
-    output: TXOutput
-    idx: int
-
-
-@dataclass
 class Block:
     timestamp: int
     transactions: list[Transaction]
@@ -94,8 +87,9 @@ class Block:
         block = Block(int(datetime.now().timestamp()), transactions, prev_block_hash)
 
         # 验证每个交易的签名
-        # for tx in transactions:
-        #     tx.verify()  # FIXME
+        for tx in transactions:
+            if not tx.verify():
+                raise BitcoinException("Signature verification failed.")
 
         block.nonce, block.hash = block.proof_of_work()
         return block
@@ -168,40 +162,25 @@ class BlockChain:
         except KeyError:
             return
 
-    def find_UTXO(self, address: str) -> list[OutputWithTransaction]:
-        """
-        UTXO: Unspent Transactions Outputs
-        """
-        utxo: list[OutputWithTransaction] = []
-        spent_tx_outputs: dict[str, bool] = {}  # key is transaction id + tout index
-
-        for block in self:
-            for tx in block.transactions:
-                for i in range(len(tx.vout)):
-                    if f"{tx.id}{i}" in spent_tx_outputs:
-                        continue
-                    elif tx.vout[i].can_be_unlocked_with(address):
-                        utxo.append(OutputWithTransaction(tx, tx.vout[i], i))
-
-                for input in tx.vin:
-                    if input.can_unlock_output_with(address):
-                        spent_tx_outputs[f"{input.txid}{input.vout_index}"] = True
-
-        return utxo
-
-    def find_spendable_utxo(
+    def find_spendable_transactions(
         self, amount: int, address: str
-    ) -> tuple[Optional[list[OutputWithTransaction]], int]:
+    ) -> tuple[list[Transaction], int]:
         """
-        寻找满足给定金额的最小 UTXO 集合.
+        寻找满足给定金额的最小交易集合.
         """
-        utxo = self.find_UTXO(address)
         accumulated = 0
         rtn = []
-        for output_with_transaction in utxo:
-            accumulated += output_with_transaction.output.value
-            rtn.append(output_with_transaction)
+
+        for tx in unspent_txs_db.values():
+            should_be_added = 0
+            for output in tx.vout:
+                if not output.is_spent and output.can_be_unlocked_with(address):
+                    accumulated += output.value
+                    should_be_added = 1
+            if should_be_added:
+                rtn.append(tx)
+
             if accumulated > amount:
                 return rtn, accumulated
 
-        return None, 0
+        raise BitcoinException(f"Not enough funds in address {address}")
