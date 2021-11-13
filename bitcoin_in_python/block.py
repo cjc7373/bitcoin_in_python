@@ -1,13 +1,12 @@
 import hashlib
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pprint import pprint
 from typing import Optional
 
 from exception import BitcoinException
-from storage import db, query, unspent_txs_table
-from tinydb.table import Document
+from storage import chain_db, misc_db, unspent_txs_db
 from transaction import Transaction, TXOutput
 
 MAX_NONCE = 1 << 64  # 防止 nonce 溢出
@@ -75,7 +74,7 @@ class Block:
         return block_dict
 
     def insert_to_db(self):
-        db.insert(self.to_dict())
+        chain_db[self.hash] = self
 
     def hash_transactions(self):
         tx_hashes = ""
@@ -117,7 +116,6 @@ class Block:
 @dataclass
 class BlockChain:
     last_block_hash: str
-    unspent_txs_set: dict[str, Transaction]  # 更新此项的同时需更新数据库
 
     def add_block(self, tx: Transaction):
         coinbase_tx = Transaction.new_coinbase_transaction("admin")
@@ -126,11 +124,10 @@ class BlockChain:
 
         # update unspent transactions set
         for tx in new_block.transactions:
-            self.unspent_txs_set[tx.id] = tx
-            unspent_txs_table.insert(Document(asdict(tx), doc_id=tx.id))
+            unspent_txs_db[tx.id] = tx
 
             for input in tx.vin:
-                input_tx = self.unspent_txs_set[input.txid]
+                input_tx = unspent_txs_db[input.txid]
                 input_tx.vout[input.vout_index].is_spent = True
 
                 all_spent = 1
@@ -140,33 +137,36 @@ class BlockChain:
                         break
 
                 if all_spent:
-                    self.unspent_txs_set.pop(input_tx.id)
+                    unspent_txs_db.pop(input_tx.id)
 
         self.last_block_hash = new_block.hash
-        db.update({"hash": self.last_block_hash}, query.type == "last_block_hash")
+        misc_db['last_block_hash'] = self.last_block_hash
 
     @classmethod
     def new_block_chain(cls, address: str):
-        if res := db.search(query.type == "last_block_hash"):
-            last_block_hash = res[0]["hash"]
-            # TODO: read unspent_txs_set
-        else:
+        try:
+            last_block_hash = misc_db['last_block_hash']
+        except KeyError:
             coinbase_transaction = Transaction.new_coinbase_transaction(address)
             genesis_block = Block.new_genesis_block(coinbase_transaction)
             genesis_block.insert_to_db()
+            for tx in genesis_block.transactions:
+                unspent_txs_db[tx.id] = tx
             last_block_hash = genesis_block.hash
-            db.insert({"type": "last_block_hash", "hash": last_block_hash})
-        return cls(last_block_hash, {})
+            misc_db['last_block_hash'] = last_block_hash
+        return cls(last_block_hash)
 
     def __iter__(self):
         """
         从尾到头迭代一条链
         """
         current_block_hash = self.last_block_hash
-        while res := db.search(query.fragment({"type": "block", "hash": current_block_hash})):
-            current_block_hash = res[0]["prev_block_hash"]
-            yield Block.from_dict(res[0])
-        return
+        try:
+            while block := chain_db[current_block_hash]:
+                current_block_hash = block.prev_block_hash
+                yield block
+        except KeyError:
+            return
 
     def find_UTXO(self, address: str) -> list[OutputWithTransaction]:
         """

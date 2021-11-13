@@ -6,9 +6,9 @@ authors = ["cjc7373 <niuchangcun@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
-tinydb = "^4.5.2"
 pycryptodome = "^3.11.0"
 base58 = "^2.1.1"
+sqlitedict = "^1.7.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

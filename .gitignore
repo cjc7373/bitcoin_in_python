@@ -5,3 +5,4 @@ data/db.json
 .vscode
 *.txt
 .mypy_cache
+*.sqlite3
