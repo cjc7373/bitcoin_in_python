@@ -8,6 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent / "data"
 
 # 数据库实际为人类可读的 JSON 文件
 db = TinyDB(BASE_DIR / "db.json", ensure_ascii=False, indent=2)
+unspent_txs_table = db.table('unspent_transactions')
 query = Query()
 
 

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 class TXOutput:
     value: int  # 交易的货币数量
     pubkey_hash: str
+    is_spent: bool = False
 
     @classmethod
     def from_dict(cls, d: dict):

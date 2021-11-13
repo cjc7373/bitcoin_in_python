@@ -6,7 +6,8 @@ from pprint import pprint
 from typing import Optional
 
 from exception import BitcoinException
-from storage import db, query
+from storage import db, query, unspent_txs_table
+from tinydb.table import Document
 from transaction import Transaction, TXOutput
 
 MAX_NONCE = 1 << 64  # 防止 nonce 溢出
@@ -70,7 +71,6 @@ class Block:
     def to_dict(self):
         block_dict = asdict(self)
         block_dict.update({"type": "block"})
-        # from pprint import  pprint
         # pprint(block_dict)
         return block_dict
 
@@ -117,12 +117,31 @@ class Block:
 @dataclass
 class BlockChain:
     last_block_hash: str
-    utxo_set: dict[str, Transaction] = field(default_factory=dict)
+    unspent_txs_set: dict[str, Transaction]  # 更新此项的同时需更新数据库
 
     def add_block(self, tx: Transaction):
         coinbase_tx = Transaction.new_coinbase_transaction("admin")
         new_block = Block.new_block([coinbase_tx, tx], self.last_block_hash)
         new_block.insert_to_db()
+
+        # update unspent transactions set
+        for tx in new_block.transactions:
+            self.unspent_txs_set[tx.id] = tx
+            unspent_txs_table.insert(Document(asdict(tx), doc_id=tx.id))
+
+            for input in tx.vin:
+                input_tx = self.unspent_txs_set[input.txid]
+                input_tx.vout[input.vout_index].is_spent = True
+
+                all_spent = 1
+                for output in input_tx.vout:
+                    if not output.is_spent:
+                        all_spent = 0
+                        break
+
+                if all_spent:
+                    self.unspent_txs_set.pop(input_tx.id)
+
         self.last_block_hash = new_block.hash
         db.update({"hash": self.last_block_hash}, query.type == "last_block_hash")
 
@@ -130,13 +149,14 @@ class BlockChain:
     def new_block_chain(cls, address: str):
         if res := db.search(query.type == "last_block_hash"):
             last_block_hash = res[0]["hash"]
+            # TODO: read unspent_txs_set
         else:
             coinbase_transaction = Transaction.new_coinbase_transaction(address)
             genesis_block = Block.new_genesis_block(coinbase_transaction)
             genesis_block.insert_to_db()
             last_block_hash = genesis_block.hash
             db.insert({"type": "last_block_hash", "hash": last_block_hash})
-        return cls(last_block_hash)
+        return cls(last_block_hash, {})
 
     def __iter__(self):
         """
