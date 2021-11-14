@@ -1,4 +1,5 @@
 import binascii
+import random
 from dataclasses import asdict, dataclass
 from hashlib import sha256
 from typing import TYPE_CHECKING
@@ -41,7 +42,7 @@ class TXOutput:
 class TXInput:
     txid: str  # 输出的交易
     vout_index: int  # 存储该输出在那笔交易中的索引
-    signature: str
+    signature: bytes
     pubkey: str
 
     @classmethod
@@ -57,6 +58,9 @@ class TXInput:
             f"{self.txid}{self.vout_index}{self.signature}{self.pubkey}".encode()
         ).hexdigest()
 
+    # def __repr__(self):
+    #     return f"TXInput: txid={self.txid}, vout_index={self.vout_index} \n"
+
 
 @dataclass
 class Transaction:
@@ -70,9 +74,12 @@ class Transaction:
         奖励矿工的交易, 不需要输出
         """
         SUBSIDY = 1
-
         out = TXOutput(SUBSIDY, to)
-        tx = cls("", [], [out])
+
+        # 创建一个空的 input 的目的是为了让每次的哈希不同
+        input = TXInput("", 0, random.randbytes(20), "")
+
+        tx = cls("", [input], [out])
         tx.hash()
         return tx
 
@@ -89,7 +96,7 @@ class Transaction:
                         TXInput(
                             tx.id,
                             index,
-                            "",
+                            b"",
                             wallet.export_public_key(),
                         )
                     )
@@ -116,8 +123,8 @@ class Transaction:
         vout = [TXOutput.from_dict(i) for i in d.pop("vout")]
         return cls(**d, vin=vin, vout=vout)
 
-    def __str__(self):
-        return str(asdict(self))
+    def __repr__(self):
+        return f"Transaction:\n" f"id={self.id}\n" f"vin={self.vin}\n" f"vout={self.vout}\n"
 
     def hash(self):
         h = sha256()
@@ -129,7 +136,7 @@ class Transaction:
         return self.id
 
     def is_coinbase(self):
-        return len(self.vin) == 0
+        return len(self.vin) == 1 and self.vin[0].txid == "" and self.vin[0].pubkey == ""
 
     def sign(self, wallet: Wallet) -> None:
         if self.is_coinbase():
@@ -145,8 +152,7 @@ class Transaction:
 
             # 由于 signer.sign 方法必须要传一个 Hash 对象, 所以又做了一遍哈希..
             # FIXME: 可以考虑改进
-            sig_bytes = signer.sign(SHA256.new(tx_copy.id.encode()))
-            self.vin[index].signature = binascii.hexlify(sig_bytes).decode()
+            self.vin[index].signature = signer.sign(SHA256.new(tx_copy.id.encode()))
 
     def verify(self) -> bool:
         """验证一个 input 的签名"""
@@ -163,7 +169,7 @@ class Transaction:
                 verifier.verify(
                     # 此处同理, 见 sign 方法
                     SHA256.new(tx_copy.id.encode()),
-                    binascii.unhexlify(self.vin[index].signature),
+                    self.vin[index].signature,
                 )
             except ValueError:
                 return False

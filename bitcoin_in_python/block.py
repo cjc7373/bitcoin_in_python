@@ -3,7 +3,6 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pprint import pprint
-from typing import Optional
 
 from exception import BitcoinException
 from storage import chain_db, misc_db, unspent_txs_db
@@ -88,16 +87,23 @@ class Block:
 
         # 验证每个交易的签名
         for tx in transactions:
+            # coinbase 交易不需要验证
+            if tx.is_coinbase():
+                continue
+
             if not tx.verify():
                 raise BitcoinException("Signature verification failed.")
 
         block.nonce, block.hash = block.proof_of_work()
         return block
 
-    def __str__(self):
+    def __repr__(self):
+        txs = ""
+        for tx in self.transactions:
+            txs += f"{tx}\n"
         return (
             f"prev hash: {self.prev_block_hash}\n"
-            f"data: {self.transactions}\n"
+            f"transactions:\n {txs}\n"
             f"hash: {self.hash}\n"
             f"POW validation: {'Pass' if self.validate() else 'Failed'}\n"
         )
@@ -112,7 +118,7 @@ class BlockChain:
     last_block_hash: str
 
     def add_block(self, tx: Transaction):
-        coinbase_tx = Transaction.new_coinbase_transaction("admin")
+        coinbase_tx = Transaction.new_coinbase_transaction("admin")  # FIXME
         new_block = Block.new_block([coinbase_tx, tx], self.last_block_hash)
         new_block.insert_to_db()
 
@@ -120,9 +126,13 @@ class BlockChain:
         for tx in new_block.transactions:
             unspent_txs_db[tx.id] = tx
 
+            if tx.is_coinbase():
+                continue
+
             for input in tx.vin:
                 input_tx = unspent_txs_db[input.txid]
                 input_tx.vout[input.vout_index].is_spent = True
+                unspent_txs_db[input.txid] = input_tx  # update db
 
                 all_spent = 1
                 for output in input_tx.vout:

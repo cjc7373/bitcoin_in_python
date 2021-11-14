@@ -1,8 +1,10 @@
 import argparse
 from dataclasses import dataclass
+from pprint import pp
 
 from block import BlockChain
 from exception import BitcoinException
+from storage import unspent_txs_db
 from transaction import Transaction
 from wallet import Wallet
 
@@ -37,7 +39,7 @@ class Cli:
         parser_getbalance = subparsers.add_parser(
             "getbalance", help="get balance from an address"
         )
-        parser_getbalance.add_argument("--address", required=True)
+        parser_getbalance.add_argument("--wallet", required=True)
         parser_getbalance.set_defaults(func=self.get_balance)
 
         parser_createwallet = subparsers.add_parser(
@@ -53,24 +55,28 @@ class Cli:
             parser.print_help()
 
     def send(self, args):
-        try:
-            wallet = Wallet.read_wallet(args.wallet)
-            tx = Transaction.new_transaction(wallet, args.to, args.amount, self.bc)
-            self.bc.add_block(tx)
-        except BitcoinException as e:
-            print(e)
+        wallet = Wallet.read_wallet(args.wallet)
+        to_wallet = Wallet.read_wallet(args.to)
+        tx = Transaction.new_transaction(wallet, to_wallet.get_address(), args.amount, self.bc)
+        self.bc.add_block(tx)
 
     def print_chain(self, args):
         for block in self.bc:
-            print(block)
+            pp(block)
+
+        print("Unspent transactions set:")
+        for tx in unspent_txs_db.values():
+            pp(tx)
 
     def get_balance(self, args):
-        utxo = self.bc.find_UTXO(args.address)
+        wallet = Wallet.read_wallet(args.wallet)
         balance = 0
-        for output_with_transaction in utxo:
-            balance += output_with_transaction.output.value
+        for tx in unspent_txs_db.values():
+            for output in tx.vout:
+                if not output.is_spent and output.can_be_unlocked_with(wallet.get_address()):
+                    balance += output.value
 
-        print(f"Balance of {args.address}: {balance:.2f}")
+        print(f"Balance of {args.wallet}: {balance:.2f}")
 
     def create_wallet(self, args):
         wallet = Wallet.new_wallet()
@@ -82,4 +88,8 @@ class Cli:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BitcoinException as e:
+        print("Execution failed with the following error:")
+        print(e)
