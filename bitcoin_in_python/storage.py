@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -8,7 +9,8 @@ if TYPE_CHECKING:
     from transaction import Transaction
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent / "data"
+# BASE_DIR = Path(__file__).resolve().parent.parent / "data"
+BASE_DIR = Path(os.getcwd()) / "data"
 
 # 数据库同时也是一个全局状态, 可以在各处被使用
 db_file = BASE_DIR / 'db.sqlite3'

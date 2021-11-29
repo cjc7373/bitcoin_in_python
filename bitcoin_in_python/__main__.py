@@ -2,17 +2,21 @@ import argparse
 from dataclasses import dataclass
 from pprint import pp
 
-from block import BlockChain
-from exception import BitcoinException
-from storage import unspent_txs_db
-from transaction import Transaction
-from wallet import Wallet
+from bitcoin_in_python.block import BlockChain
+from bitcoin_in_python.exception import BitcoinException
+from bitcoin_in_python.storage import unspent_txs_db
+from bitcoin_in_python.transaction import Transaction
+from bitcoin_in_python.wallet import Wallet
 
 
 def main():
-    bc = BlockChain.new_block_chain("1DtHd1KgS4c1YrCjuPtEzTtbizsPa47NuR")
-    cli = Cli(bc)
-    cli.run()
+    try:
+        bc = BlockChain.new_block_chain("1DtHd1KgS4c1YrCjuPtEzTtbizsPa47NuR")
+        cli = Cli(bc)
+        cli.run()
+    except BitcoinException as e:
+        print("Execution failed with the following error:")
+        print(e)
 
 
 @dataclass
@@ -88,8 +92,4 @@ class Cli:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except BitcoinException as e:
-        print("Execution failed with the following error:")
-        print(e)
+    main()

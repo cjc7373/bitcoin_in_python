@@ -8,8 +8,9 @@ import base58
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
-from exception import BitcoinException
-from wallet import Wallet, hex_hash_pubkey
+
+from bitcoin_in_python.exception import BitcoinException
+from bitcoin_in_python.wallet import Wallet, hex_hash_pubkey
 
 if TYPE_CHECKING:
     from block import BlockChain

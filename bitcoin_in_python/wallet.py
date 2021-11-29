@@ -5,7 +5,8 @@ from hashlib import sha256
 import base58
 from Crypto.Hash import RIPEMD160
 from Crypto.PublicKey import ECC
-from storage import read_str_from_file, save_str_to_file
+
+from bitcoin_in_python.storage import read_str_from_file, save_str_to_file
 
 
 def new_key_pair() -> tuple[ECC.EccKey, ECC.EccKey]:
