@@ -6,3 +6,4 @@ data/db.json
 *.txt
 .mypy_cache
 *.sqlite3
+test*

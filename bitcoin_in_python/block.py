@@ -115,15 +115,18 @@ class Block:
 
 @dataclass
 class BlockChain:
-    last_block_hash: str
-
     def add_block(self, tx: Transaction):
         coinbase_tx = Transaction.new_coinbase_transaction("admin")  # FIXME
-        new_block = Block.new_block([coinbase_tx, tx], self.last_block_hash)
+        new_block = Block.new_block([coinbase_tx, tx], misc_db['last_block_hash'])
         new_block.insert_to_db()
 
         # update unspent transactions set
-        for tx in new_block.transactions:
+        self.update_unspent_txs_set(new_block)
+
+        misc_db['last_block_hash'] = new_block.hash
+
+    def update_unspent_txs_set(self, block: Block):
+        for tx in block.transactions:
             unspent_txs_db[tx.id] = tx
 
             if tx.is_coinbase():
@@ -143,13 +146,11 @@ class BlockChain:
                 if all_spent:
                     unspent_txs_db.pop(input_tx.id)
 
-        self.last_block_hash = new_block.hash
-        misc_db['last_block_hash'] = self.last_block_hash
-
     @classmethod
     def new_block_chain(cls, address: str):
         try:
             last_block_hash = misc_db['last_block_hash']
+            raise BitcoinException("A blockchain already exists!")
         except KeyError:
             coinbase_transaction = Transaction.new_coinbase_transaction(address)
             genesis_block = Block.new_genesis_block(coinbase_transaction)
@@ -158,19 +159,48 @@ class BlockChain:
                 unspent_txs_db[tx.id] = tx
             last_block_hash = genesis_block.hash
             misc_db['last_block_hash'] = last_block_hash
-        return cls(last_block_hash)
+        return cls()
 
     def __iter__(self):
         """
         从尾到头迭代一条链
         """
-        current_block_hash = self.last_block_hash
+        current_block_hash = misc_db['last_block_hash']
         try:
             while block := chain_db[current_block_hash]:
                 current_block_hash = block.prev_block_hash
                 yield block
         except KeyError:
             return
+
+    def __len__(self):
+        try:
+            current_block_hash = misc_db['last_block_hash']
+        except KeyError:
+            return 0
+        cnt = 0
+        try:
+            while block := chain_db[current_block_hash]:
+                current_block_hash = block.prev_block_hash
+                cnt += 1
+        except KeyError:
+            return cnt
+
+    def top_n_blocks(self, n: int):
+        # TODO: 可能有性能问题
+        if n > len(self):
+            raise BitcoinException(
+                f"Trying to read {n} blocks when current chain height is { len(self)}"
+            )
+        current_block_hash = misc_db['last_block_hash']
+        cnt = 0
+        blocks = []
+        while block := chain_db[current_block_hash]:
+            current_block_hash = block.prev_block_hash
+            blocks.append(block)
+            cnt += 1
+            if cnt == n:
+                return blocks
 
     def find_spendable_transactions(
         self, amount: int, address: str
@@ -194,3 +224,6 @@ class BlockChain:
                 return rtn, accumulated
 
         raise BitcoinException(f"Not enough funds in address {address}")
+
+
+blockchain = BlockChain()

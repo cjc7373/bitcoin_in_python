@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 # BASE_DIR = Path(__file__).resolve().parent.parent / "data"
-BASE_DIR = Path(os.getcwd()) / "data"
+BASE_DIR = Path(os.getcwd())
 
 # 数据库同时也是一个全局状态, 可以在各处被使用
 db_file = BASE_DIR / 'db.sqlite3'
