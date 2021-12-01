@@ -1,6 +1,6 @@
 import binascii
 import random
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from typing import TYPE_CHECKING
 
@@ -43,8 +43,8 @@ class TXOutput:
 class TXInput:
     txid: str  # 输出的交易
     vout_index: int  # 存储该输出在那笔交易中的索引
-    signature: bytes
-    pubkey: str
+    signature: bytes = field(repr=False)
+    pubkey: str = field(repr=False)
 
     @classmethod
     def from_dict(cls, d: dict):

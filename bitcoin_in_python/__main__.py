@@ -28,6 +28,8 @@ def main():
 
 @dataclass
 class Cli:
+    port: int = 4000
+
     def run(self):
         parser = argparse.ArgumentParser(
             description="Manage a simple blockchain.", prog="bitcoin_in_python"
@@ -68,6 +70,9 @@ class Cli:
         parser_startserver = subparsers.add_parser(
             "startserver", help="Start a server as a mining node."
         )
+        parser_startserver.add_argument(
+            "--wallet", help="The account who receives the mining rewards.", required=True
+        )
         parser_startserver.set_defaults(func=self.start_server)
 
         args = parser.parse_args()
@@ -76,19 +81,44 @@ class Cli:
         else:
             parser.print_help()
 
-    def send(self, args):
-        wallet = Wallet.read_wallet(args.wallet)
-        to_wallet = Wallet.read_wallet(args.to)
-        tx = Transaction.new_transaction(wallet, to_wallet.get_address(), args.amount, self.bc)
-        BlockChain().add_block(tx)
-
-    def print_chain(self, args):
-        with create_client_socket(4000) as s:
-            version = Version(len(blockchain), "")  # FIXME
+    def _pull_chain(self):
+        with create_client_socket(self.port) as s:
+            version = Version(len(blockchain), "")
+            print(f"Checking chain state from the mining node..")
             send_data('pull chain', pickle.dumps(version), s)
             _, data = recv_data(s)
-            data = pickle.loads(data)
-            print(data)
+            if data:
+                data = pickle.loads(data)
+                for block in data:
+                    blockchain.add_block(block)
+                print(f"Receiving {len(data)} block(s)")
+            print("Chain state updated.")
+
+    def send(self, args):
+        self._pull_chain()
+
+        wallet = Wallet.read_wallet(args.wallet)
+        to_wallet = Wallet.read_wallet(args.to)
+        tx = Transaction.new_transaction(
+            wallet, to_wallet.get_address(), args.amount, blockchain
+        )
+        blockchain.update_unspent_txs_set(tx)
+
+        with create_client_socket(self.port) as s:
+            send_data('send', pickle.dumps([tx]), s)
+            command, data = recv_data(s)
+            if command == 'empty':
+                print(
+                    "Transaction submitted. "
+                    "Waiting for the miner to process our transaction.."
+                )
+            else:
+                block = pickle.loads(data)
+                blockchain.add_block(block)
+                print(f"Transaction done. " f"It is included in block {block}")
+
+    def print_chain(self, args):
+        self._pull_chain()
 
         for block in BlockChain():
             pp(block)
@@ -98,6 +128,8 @@ class Cli:
             pp(tx)
 
     def get_balance(self, args):
+        self._pull_chain()
+
         wallet = Wallet.read_wallet(args.wallet)
         balance = 0
         for tx in unspent_txs_db.values():
@@ -120,7 +152,8 @@ class Cli:
         BlockChain.new_block_chain(wallet.get_address())
 
     def start_server(self, args):
-        create_server(4000)
+        wallet = Wallet.read_wallet(args.wallet)
+        create_server(self.port, wallet)
 
 
 if __name__ == "__main__":

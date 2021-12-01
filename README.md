@@ -3,11 +3,9 @@ A simple implementation of bitcoin in Python.
 
 Based on https://liuchengxu.gitbook.io/blockchain/
 
-## TODO
-- block 中嵌套 transaction 从数据库创建对象的时候怎么处理?
-
 ## Issues
 - 状态保存的问题, 我们同时需要维护内存中的状态和数据库中的状态
+- 我们还要处理挖出一个块后因为某些原因回滚的情况, 此时如何更新 unspent_txs_set? 暂时先不考虑吧..
 
 ## History
 - 是否应该弃用 tinydb 呢? 在字符串和字节序列间转来转去太折磨了..  

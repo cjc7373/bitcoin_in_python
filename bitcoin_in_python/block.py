@@ -103,7 +103,7 @@ class Block:
             txs += f"{tx}\n"
         return (
             f"prev hash: {self.prev_block_hash}\n"
-            f"transactions:\n {txs}\n"
+            f"transactions:\n {txs}"
             f"hash: {self.hash}\n"
             f"POW validation: {'Pass' if self.validate() else 'Failed'}\n"
         )
@@ -115,36 +115,51 @@ class Block:
 
 @dataclass
 class BlockChain:
-    def add_block(self, tx: Transaction):
-        coinbase_tx = Transaction.new_coinbase_transaction("admin")  # FIXME
-        new_block = Block.new_block([coinbase_tx, tx], misc_db['last_block_hash'])
+    def create_block(self, txs: list[Transaction], address: str) -> Block:
+        coinbase_tx = Transaction.new_coinbase_transaction(address)
+        new_block = Block.new_block([coinbase_tx] + txs, misc_db['last_block_hash'])
         new_block.insert_to_db()
 
         # update unspent transactions set
-        self.update_unspent_txs_set(new_block)
+        for tx in new_block.transactions:
+            self.update_unspent_txs_set(tx)
 
         misc_db['last_block_hash'] = new_block.hash
 
-    def update_unspent_txs_set(self, block: Block):
+        return new_block
+
+    def add_block(self, block: Block):
+        block.insert_to_db()
+
         for tx in block.transactions:
-            unspent_txs_db[tx.id] = tx
+            self.update_unspent_txs_set(tx)
 
-            if tx.is_coinbase():
-                continue
+        misc_db['last_block_hash'] = block.hash
 
-            for input in tx.vin:
-                input_tx = unspent_txs_db[input.txid]
-                input_tx.vout[input.vout_index].is_spent = True
-                unspent_txs_db[input.txid] = input_tx  # update db
+    def update_unspent_txs_set(self, tx: Transaction):
+        if tx.id in unspent_txs_db:
+            # 如果已经处理过这笔交易了就直接返回
+            return
 
-                all_spent = 1
-                for output in input_tx.vout:
-                    if not output.is_spent:
-                        all_spent = 0
-                        break
+        unspent_txs_db[tx.id] = tx
 
-                if all_spent:
-                    unspent_txs_db.pop(input_tx.id)
+        # coinbase 交易不用检查 inputs
+        if tx.is_coinbase():
+            return
+
+        for input in tx.vin:
+            input_tx = unspent_txs_db[input.txid]
+            input_tx.vout[input.vout_index].is_spent = True
+            unspent_txs_db[input.txid] = input_tx  # update db
+
+            all_spent = 1
+            for output in input_tx.vout:
+                if not output.is_spent:
+                    all_spent = 0
+                    break
+
+            if all_spent:
+                unspent_txs_db.pop(input_tx.id)
 
     @classmethod
     def new_block_chain(cls, address: str):
@@ -174,6 +189,7 @@ class BlockChain:
             return
 
     def __len__(self):
+        # FIXME: 性能问题
         try:
             current_block_hash = misc_db['last_block_hash']
         except KeyError:
@@ -187,7 +203,6 @@ class BlockChain:
             return cnt
 
     def top_n_blocks(self, n: int):
-        # TODO: 可能有性能问题
         if n > len(self):
             raise BitcoinException(
                 f"Trying to read {n} blocks when current chain height is { len(self)}"

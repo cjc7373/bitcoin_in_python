@@ -3,6 +3,8 @@ import socket
 from dataclasses import dataclass
 
 from bitcoin_in_python.block import blockchain
+from bitcoin_in_python.transaction import Transaction
+from bitcoin_in_python.wallet import Wallet
 
 
 @dataclass
@@ -30,23 +32,44 @@ def recv_data(conn: socket.socket) -> tuple[str, bytes]:
     return command, data
 
 
-def command_handler(command: str, data: bytes, conn: socket.socket):
+pending_transactions = []
+
+
+def command_handler(command: str, data: bytes, conn: socket.socket, wallet: Wallet):
     print(f"Received command {command}")
     if command == 'pull chain':
+        # Receiving Version object
         version = pickle.loads(data)
         if len(blockchain) > version.height:
             blocks = blockchain.top_n_blocks(len(blockchain) - version.height)
             print(f"Sending {len(blocks)} block(s)")
             send_data('reply', pickle.dumps(blocks), conn)
+    if command == 'send':
+        global pending_transactions
+        # Receiving a list of transactions
+        txs: list[Transaction] = pickle.loads(data)
+        print(f"Receiving {len(txs)} transaction(s).")
+        pending_transactions += txs
+        if len(pending_transactions) >= 2:
+            print("Mining a new block..")
+            block = blockchain.create_block(pending_transactions, wallet.get_address())
+            pending_transactions.clear()
+
+            # Return the new block
+            print(f"Sending a new block..")
+            send_data('reply', pickle.dumps(block), conn)
+        else:
+            print("Only one pending transaction, waiting for another..")
+            send_data('empty', b'', conn)
 
 
-def create_client_socket(port):
+def create_client_socket(port: int):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect(('localhost', port))
     return s
 
 
-def create_server(port):
+def create_server(port: int, wallet: Wallet):
     """
     自定义一种协议, 前 4 字节为长度, 接 12 字节为命令名称, 接下来为数据.
     每个 socket 在通信一次后即关闭 (和 HTTP 类似)
@@ -60,4 +83,4 @@ def create_server(port):
             with conn:
                 print('Connected by', addr)
                 command, data = recv_data(conn)
-                command_handler(command, data, conn)
+                command_handler(command, data, conn, wallet)
