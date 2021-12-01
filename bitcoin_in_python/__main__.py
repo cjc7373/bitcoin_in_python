@@ -90,6 +90,7 @@ class Cli:
             if data:
                 data = pickle.loads(data)
                 for block in data:
+                    # print(block)
                     blockchain.add_block(block)
                 print(f"Receiving {len(data)} block(s)")
             print("Chain state updated.")

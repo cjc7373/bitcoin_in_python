@@ -215,7 +215,7 @@ class BlockChain:
             blocks.append(block)
             cnt += 1
             if cnt == n:
-                return blocks
+                return blocks[::-1]
 
     def find_spendable_transactions(
         self, amount: int, address: str
