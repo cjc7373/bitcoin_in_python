@@ -1,7 +1,10 @@
+This repo is archived and I'm working on a Go version on [bitcoin_go](https://github.com/cjc7373/bitcoin_go).
+
 # Bitcoin in Python
 A simple implementation of bitcoin in Python.
 
 Based on https://liuchengxu.gitbook.io/blockchain/
+Which is a translation of https://github.com/Jeiwan/blockchain_go
 
 ## Issues
 - 状态保存的问题, 我们同时需要维护内存中的状态和数据库中的状态
